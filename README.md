@@ -64,7 +64,17 @@ Kit skills are never edited inside a project: an update overwrites them. A proje
 | PR | `/open-pr` | Draft PR, shared-environment e2e, ready for review |
 | ✋ 3 | Lead reviewer | Merge |
 
-Green-zone changes skip the plan: change → `/verify` → `/risk-review` → PR.
+### Where to start
+
+| The change | Start with |
+|---|---|
+| New provider, or an external API or library we don't know yet | `/research` → `/grill-me` → `/to-spec` → `/to-tickets` → `/deliver` |
+| Internal feature in the red zone (money, auth, data) | `/grill-me` → `/to-spec` → `/to-tickets` → `/deliver` |
+| Small internal yellow feature | a short `/grill-me` → `/to-spec` (few tickets, sometimes one) |
+| Green: docs, scripts, small tweaks | no plan: change → `/verify` → `/risk-review` → PR |
+
+`/research` only pays off for something external we don't know. For internal changes `/grill-me` reads the code itself, going deep in red and fast in green. A one-off library question during the grill is a Context7 lookup, not a research run; what can't be settled stays in the spec as an external fact, with the value assumed meanwhile.
+
 
 ### Several repos, one delivery
 
