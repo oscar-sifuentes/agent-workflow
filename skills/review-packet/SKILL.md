@@ -11,6 +11,7 @@ Folder: `.review/<branch>/`, with `/` in the branch name replaced by `-`. `.revi
 
 ## Gather
 
+0. The repos of the delivery: the `REPO` lines of `deliver-log.md`. Gather everything below **per repo** (`git -C <integration worktree>`) and write one packet, with a `## <repo>: feat/<slug>` block (base, files, zone, Must read) for each related repo after this repo's.
 1. The diff against the delivery's base (the branch `/deliver` started from; usually `origin/<defaultBranch>`): `git diff --stat` and the per-file diffs. Use `git diff --color-moved=zebra` to separate pure moves from real changes.
 2. The spec and tickets in `docs/specs/<slug>/`.
 3. The latest `risk-review` output for the whole branch. Run it if there is none, or if the branch changed since. Its "Human review list" is the source for "Must read".

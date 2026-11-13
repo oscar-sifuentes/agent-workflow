@@ -1,6 +1,6 @@
 ---
 name: render-html
-description: Turn a spec with its tickets, or a review packet, into a polished HTML page a person actually wants to read (zones in color, the ticket dependency graph, invariants, the lines to read, e2e screenshots). The markdown stays the source of truth; the page is a view of it. Use at the end of /to-tickets and /review-packet, or when the developer asks for a readable version of a spec or packet.
+description: Turn a spec with its tickets, or a review packet, into a polished HTML page a person actually wants to read (zones in color, the ticket dependency graph, invariants, the lines to read, e2e screenshots). The markdown stays the source of truth; the page is a view of it. Use at the end of /to-spec (spec alone), /to-tickets (spec and tickets) and /review-packet, or when the developer asks for a readable version of a spec or packet.
 argument-hint: 'spec <slug> | review <branch>'
 ---
 
@@ -22,7 +22,7 @@ Inside `/deliver`, don't wait on it: start it and keep going.
 
 | Mode | Read | Write |
 |---|---|---|
-| `spec <slug>` | `docs/specs/<slug>/spec.md`, `docs/specs/<slug>/tickets/*.md` | `.review/specs/<slug>/index.html` |
+| `spec <slug>` | `docs/specs/<slug>/spec.md`, and `docs/specs/<slug>/tickets/*.md` when they exist | `.review/specs/<slug>/index.html` |
 | `review <branch>` | `.review/<branch>/REVIEW.md`, `e2e-*.md`, `screenshots/` in that folder, the spec | `.review/<branch>/review.html` |
 
 `<branch>` has `/` replaced by `-`. `.review/` is git-ignored, so the page is never committed.
@@ -45,7 +45,7 @@ Lead with what the reader must decide or check, then the detail. Rewrite for the
 - Hero: the spec title, one sentence of what it delivers, zone, ticket and invariant counts as chips.
 - Stats: tickets, red tickets, invariants, open questions.
 - The problem and the user stories as cards.
-- Tickets as `waves`, one column per dependency level, from the "Blocked by" lines.
+- Tickets as `waves`, one column per dependency level, from the "Blocked by" lines, with each ticket's repo when the spec spans several. **No tickets yet** (right after `/to-spec`): leave out the waves and the ticket counts, show the repos as chips, and end with a `callout`: "Approve the spec, then `/to-tickets` splits it".
 - Invariants table: number, invariant, the ticket that proves it.
 - Open questions (`qa .open`) near the top if any block a ticket.
 - Out of scope, test seams, docs checked, e2e scenarios: shorter, in `details` when long.

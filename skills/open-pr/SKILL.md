@@ -23,6 +23,11 @@ gh pr create --draft --base <defaultBranch> --title "<type>(<area>): <spec title
 
 The body is `.github/pull_request_template.md` filled in from `.review/<branch>/REVIEW.md`: the zone, the "Must read" list, the invariants table, the decisions, the e2e results and the deploy notes. Add the attribution line the session uses at the end.
 
+
+### Related repos
+
+When `deliver-log.md` has `REPO` lines, open **one draft PR per repo**, each from its integration worktree against that repo's default branch, with the part of the packet for that repo. Open the backend's PR first, then add a "Related PRs" line with every other PR's link to each description (`gh pr edit`). Merge order goes in the deploy notes: usually the backend first, then the fronts.
+
 ## 3. Shared test environment
 
 The PR's checks run while it is a draft. Then, with the developer:
@@ -49,7 +54,7 @@ Once the PR is ready for review, the local worktree has done its job: the branch
 bash .agents/skills/deliver/scripts/worktree.sh close <slug>
 ```
 
-It removes `<parent>/<slug>` and any ticket worktree left over, and keeps `feat/<slug>`. To review or fix the PR later, check the branch out again (`git worktree add <path> feat/<slug>`). Copy `.review/feat-<slug>/` somewhere first if you want to keep the local evidence; it is git-ignored and goes with the worktree.
+It removes `<parent>/<slug>` and any ticket worktree left over, and keeps `feat/<slug>`. For each related repo, also `bash .agents/skills/deliver/scripts/worktree.sh --repo <repo path> close <slug>`. To review or fix the PR later, check the branch out again (`git worktree add <path> feat/<slug>`). Copy `.review/feat-<slug>/` somewhere first if you want to keep the local evidence; it is git-ignored and goes with the worktree.
 
 If the developer drops the delivery instead of opening a PR, use `close <slug> --discard`, which also deletes `feat/<slug>` and its ticket branches. Only on their word.
 

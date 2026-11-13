@@ -18,16 +18,67 @@
 #                                           (it lives on in the PR) unless --discard,
 #                                           which also deletes feat/<slug> and its ticket
 #                                           branches. Run it from another worktree.
+#   worktree.sh repo <name>                 print the path of a related repo on this machine
+#                                           (a sibling folder whose name or origin is <name>)
+#   worktree.sh --repo <path> <command> ... run any command above in another repo. Its
+#                                           integration worktree is <parent>/<repo>--<slug>,
+#                                           installed with its commands.install, or else its
+#                                           lockfile's package manager.
 set -euo pipefail
 
-cmd="${1:?usage: worktree.sh integration|add|remove|path ...}"
-here="$(git rev-parse --show-toplevel)"
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 heavy="$script_dir/../../verify/scripts/heavy.sh"
+other_repo=""
+if [ "${1:-}" = "--repo" ]; then
+  other_repo="$(cd "${2:?repo path required}" && pwd)"
+  shift 2
+fi
+cmd="${1:?usage: worktree.sh [--repo <path>] integration|add|remove|path|close|repo ...}"
+here="$(git -C "${other_repo:-.}" rev-parse --show-toplevel)"
+# The repo's main checkout: where untracked files such as .env live.
+main_checkout="$(git -C "$here" worktree list --porcelain | sed -n '1s/^worktree //p')"
+
+# Folder of a new integration worktree. This repo keeps <parent>/<slug>; another repo
+# gets its name in front, so two repos with the same slug never share a folder.
+integration_dest() {
+  if [ -n "$other_repo" ]; then
+    echo "$(dirname "$main_checkout")/$(basename "$main_checkout")--$1"
+  else
+    echo "$(dirname "$here")/$1"
+  fi
+}
+
+# Install a fresh worktree: commands.install from its project.json, or else the
+# package manager of its lockfile (a related repo may have no project.json).
+install_deps() {
+  local dir="$1" install_cmd
+  install_cmd="$(project_cfg commands.install "$dir")"
+  if [ -z "$install_cmd" ] && [ -f "$dir/package.json" ]; then
+    if [ -f "$dir/yarn.lock" ]; then install_cmd="yarn install --frozen-lockfile --non-interactive"
+    elif [ -f "$dir/pnpm-lock.yaml" ]; then install_cmd="pnpm install --frozen-lockfile"
+    elif ls "$dir"/bun.lock* >/dev/null 2>&1; then install_cmd="bun install --frozen-lockfile"
+    else install_cmd="npm ci"
+    fi
+  fi
+  [ -n "$install_cmd" ] || return 0
+  (cd "$dir" && bash "$heavy" sh -c "$install_cmd")
+}
+
+# Untracked env files (.env, .env.local, ...) from the main checkout, linked so a server
+# started from the worktree has its config. Linked, never copied or edited.
+link_env_files() {
+  local dir="$1" f
+  [ "$dir" = "$main_checkout" ] && return 0
+  for f in "$main_checkout"/.env*; do
+    [ -f "$f" ] || continue
+    git -C "$main_checkout" ls-files --error-unmatch "$(basename "$f")" >/dev/null 2>&1 && continue
+    [ -e "$dir/$(basename "$f")" ] || ln -s "$f" "$dir/$(basename "$f")"
+  done
+}
 
 # Read a dotted key from .agents/project.json (empty when missing).
 project_cfg() {
-  local file="$here/.agents/project.json"
+  local file="${2:-$here}/.agents/project.json"
   [ -f "$file" ] || return 0
   if command -v node >/dev/null 2>&1; then
     node -e 'const c=require(process.argv[1]);const v=process.argv[2].split(".").reduce((o,k)=>o&&o[k],c);if(v!=null)console.log(v)' "$file" "$1"
@@ -52,17 +103,15 @@ case "$cmd" in
   integration)
     slug="${2:?slug required}"
     base="${3:-$(git -C "$here" branch --show-current)}"
-    dest="$(dirname "$here")/$slug"
+    dest="$(integration_dest "$slug")"
     fresh=0
     if git -C "$here" show-ref --quiet "refs/heads/feat/$slug"; then
-      if [ ! -d "$dest" ]; then git -C "$here" worktree add "$dest" "feat/$slug"; fresh=1; fi
+      if [ ! -d "$dest" ]; then git -C "$here" worktree add "$dest" "feat/$slug" >&2; fresh=1; fi
     else
-      git -C "$here" worktree add -b "feat/$slug" "$dest" "$base"; fresh=1
+      git -C "$here" worktree add -b "feat/$slug" "$dest" "$base" >&2; fresh=1
     fi
-    install_cmd="$(project_cfg commands.install)"
-    if [ -n "$install_cmd" ] && [ "$fresh" = 1 ]; then
-      (cd "$dest" && bash "$heavy" sh -c "$install_cmd")
-    fi
+    [ "$fresh" = 1 ] && install_deps "$dest"
+    link_env_files "$dest"
     echo "$dest"
     ;;
   add)
@@ -72,9 +121,9 @@ case "$cmd" in
     branch="feat/$slug--$nn"
     if [ ! -d "$dest" ]; then
       if git -C "$here" show-ref --quiet "refs/heads/$branch"; then
-        git -C "$here" worktree add "$dest" "$branch"
+        git -C "$here" worktree add "$dest" "$branch" >&2
       else
-        git -C "$here" worktree add -b "$branch" "$dest" "feat/$slug"
+        git -C "$here" worktree add -b "$branch" "$dest" "feat/$slug" >&2
       fi
     fi
     if [ -d "$here/node_modules" ] && [ ! -e "$dest/node_modules" ]; then
@@ -100,7 +149,7 @@ case "$cmd" in
   close)
     slug="${2:?slug required}"
     discard="${3:-}"
-    dest="$(dirname "$here")/$slug"
+    dest="$(integration_dest "$slug")"
     if [ "$here" = "$dest" ]; then
       echo "worktree.sh: run 'close' from another worktree, not from $dest itself" >&2; exit 2
     fi
@@ -109,6 +158,7 @@ case "$cmd" in
       if [ -L "$wt/node_modules" ]; then unlink "$wt/node_modules"; fi
       git -C "$here" worktree remove --force "$wt"
     done
+    for f in "$dest"/.env*; do if [ -L "$f" ]; then unlink "$f"; fi; done
     if [ -d "$dest" ]; then git -C "$here" worktree remove "$dest"; fi
     git -C "$here" worktree prune
     if [ "$discard" = "--discard" ]; then
@@ -116,6 +166,24 @@ case "$cmd" in
         while read -r b; do git -C "$here" branch -D "$b" >/dev/null; echo "deleted branch $b"; done
     fi
     echo "closed $dest"
+    ;;
+  repo)
+    name="${2:?repo name required}"
+    # Look next to this repo's main checkout and next to the current worktree.
+    for parent in "$(dirname "$main_checkout")" "$(dirname "$here")"; do
+      for dir in "$parent"/*/; do
+        dir="${dir%/}"
+        [ -e "$dir/.git" ] || continue
+        origin="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+        origin="$(basename "${origin%.git}")"
+        if [ "$(basename "$dir")" = "$name" ] || [ "$origin" = "$name" ]; then
+          git -C "$dir" worktree list --porcelain | sed -n '1s/^worktree //p'
+          exit 0
+        fi
+      done
+    done
+    echo "worktree.sh: no repo named '$name' next to $(dirname "$main_checkout")" >&2
+    exit 3
     ;;
   *)
     echo "worktree.sh: unknown command '$cmd'" >&2; exit 2 ;;

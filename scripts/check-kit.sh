@@ -11,6 +11,8 @@
 # 5. No private names (project, company, people) anywhere in the kit.
 # 6. Templates: valid JSON, and every {{PLACEHOLDER}} is documented in setup-workflow.
 # 7. link-skills.mjs repairs a Windows-style checkout (symlink as a text file).
+# 8. worktree.sh finds a related repo and builds its integration and ticket worktrees;
+#    servers.sh starts, reports and stops an app.
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
@@ -90,5 +92,44 @@ w="$tmp/win"; mkdir -p "$w"
   node .agents/skills/setup-workflow/scripts/link-skills.mjs > /dev/null
   [ -f .claude/skills/deliver/SKILL.md ] && [ -z "$(git status --porcelain)" ]
 ) && ok "link-skills repairs a symlink-less checkout" || bad "link-skills"
+
+# 8. Multi-repo worktrees and servers
+m="$tmp/multi"; mkdir -p "$m"
+(
+  set -e
+  for r in api front; do
+    mkdir -p "$m/$r" && cd "$m/$r"
+    git init -q -b main && git config user.email t@t && git config user.name t
+    printf '.env*\n.review/\n' > .gitignore && echo x > a && git add -A && git commit -qm base
+  done
+  echo "K=1" > "$m/front/.env.local"
+  mkdir -p "$m/api/.agents/skills" && cp -R "$root/skills/deliver" "$root/skills/verify" "$m/api/.agents/skills/"
+  cd "$m/api"
+  w=.agents/skills/deliver/scripts/worktree.sh
+  [ "$(bash $w repo front)" = "$m/front" ]
+  ! bash $w repo nope 2>/dev/null
+  i="$(bash $w --repo "$m/front" integration demo main 2>/dev/null)"
+  [ "$i" = "$m/front--demo" ] && [ -L "$i/.env.local" ] && [ -z "$(git -C "$i" status --porcelain)" ]
+  t="$(cd "$i" && bash "$m/api/$w" add 01 2>/dev/null)"
+  [ "$(git -C "$t" branch --show-current)" = "feat/demo--01" ]
+  (cd "$i" && bash "$m/api/$w" remove 01 >/dev/null)
+  bash $w --repo "$m/front" close demo --discard >/dev/null
+  [ ! -d "$i" ] && [ -z "$(git -C "$m/front" branch --list 'feat/*')" ]
+) && ok "worktree.sh works across repos" || bad "worktree.sh across repos"
+if command -v nc >/dev/null && command -v python3 >/dev/null; then
+  (
+    set -e
+    cd "$m/api"
+    s=.agents/skills/deliver/scripts/servers.sh
+    p="$(bash $s free-port 18100)"
+    bash $s start demo "$p" "$m" -- python3 -m http.server "$p" >/dev/null
+    bash $s status | grep -q "running demo"
+    bash $s stop >/dev/null
+    sleep 1; ! nc -z 127.0.0.1 "$p"
+    ! bash $s start bad "$((p+1))" "$m" -- sh -c 'exit 1' 2>/dev/null
+  ) && ok "servers.sh starts and stops an app" || bad "servers.sh"
+else
+  echo "skip servers.sh (needs nc and python3)"
+fi
 
 exit "$fail"

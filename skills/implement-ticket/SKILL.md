@@ -12,6 +12,15 @@ You build exactly one ticket, as a worker of the `/deliver` orchestrator. Your b
 
 You never merge into `feat/<slug>`: you finish, report, and the orchestrator reviews and merges.
 
+## A ticket in another repo
+
+When your brief names a **repo** other than the one the spec lives in, your worktree is in that repo, and the spec, the ticket and these skills stay in the spec's repo (your brief gives their absolute paths).
+
+- Read that repo's `AGENTS.md`, `CLAUDE.md` or `README.md`, whichever exist, for code style. If it has none, copy how its code is already written. The spec repo's domain and security rules still apply to anything that touches them.
+- Its commands come from its own `.agents/project.json` if it has one, else its `package.json` (or build files) and its lockfile's package manager. Run only the checks of the files you changed, through the `heavy.sh` path in your brief.
+- Don't edit the ticket file: the orchestrator sets its status. Docs upkeep applies only if that repo has a `CHANGELOG.md` or a README for what you changed.
+- Everything else (branch, report file, signal, never push) is the same.
+
 ## Asking the orchestrator
 
 Ask only when the answer can move money, change auth or access, or expose data, and the spec, the ticket, the code and `AGENTS.md` don't settle it. For anything else, pick the option the codebase already follows (or the simplest one), note it under "Decisions not in the spec" in your report, and keep going: the run is unattended. Use the runner's channel from your brief:

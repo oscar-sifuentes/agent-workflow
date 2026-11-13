@@ -5,6 +5,8 @@ description: Find the local test environment before an end-to-end test. Probes t
 
 # Dev env
 
+**Inside `/deliver`** this skill only checks the infrastructure (database, cache, queues). The orchestrator starts the apps from the integration worktrees with `.agents/skills/deliver/scripts/servers.sh`, so the e2e tests the branch's code; see "Run from a worktree" in `AGENTS.md`.
+
 Find a running environment and use it. Don't invent one, and don't start anything the developer did not choose.
 
 ## 1. Detect what is running

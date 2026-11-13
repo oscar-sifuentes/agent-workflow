@@ -10,6 +10,7 @@ Prove the change works in a running app, not just in unit tests. Two layers: the
 ## 0. Environment
 
 - Local (default): run the `dev-env` skill first and use what it reports.
+- Under `/deliver`: test the apps the orchestrator started from the integration worktrees (`bash .agents/skills/deliver/scripts/servers.sh status`, URLs in `deliver-log.md`), never the developer's running apps.
 - `--target <name>`: use that entry of `environments.shared` in `.agents/project.json` (its URLs); ask the developer for anything missing. Confirm that the branch under test is the one deployed there.
 
 Follow the database rules in the `dev-env` skill. Never target production.

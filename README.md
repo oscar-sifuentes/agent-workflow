@@ -53,8 +53,8 @@ Kit skills are never edited inside a project: an update overwrites them. A proje
 |---|---|---|
 | Research | `/research` | `docs/research/<topic>.md` |
 | Sharpen the plan | `/grill-me`, or `/grill-with-docs` (adds `GLOSSARY.md` and ADRs via `domain-modeling`) | Decisions and invariants |
-| Spec | `/to-spec` | `docs/specs/<slug>/spec.md` |
-| Tickets | `/to-tickets`, then `render-html` | `docs/specs/<slug>/tickets/`, a readable page in `.review/specs/<slug>/` |
+| Spec | `/to-spec`, then `render-html` | `docs/specs/<slug>/spec.md` and a readable page, which the developer reads to approve |
+| Tickets | `/to-tickets`, then `render-html` | `docs/specs/<slug>/tickets/` (one repo each), a readable page in `.review/specs/<slug>/` |
 | ✋ 1 | Developer approves | |
 | Build | `/deliver <slug>`: one worker per ticket (`implement-ticket`, `tdd`) through Orca, Herdr, the tool's sub-agents or one at a time | `feat/<slug>` |
 | Review | `/verify`, `/risk-review`, `/code-review`, `/simplify` when the agent has it | Findings fixed in at most two rounds |
@@ -66,10 +66,15 @@ Kit skills are never edited inside a project: an update overwrites them. A proje
 
 Green-zone changes skip the plan: change → `/verify` → `/risk-review` → PR.
 
+### Several repos, one delivery
+
+A feature that needs the API and a front stays in **one spec**: each ticket names its `Repo:`. `/deliver` finds each related repo next to this one (by folder or `origin` name), creates `feat/<slug>` there from its default branch, builds its tickets in its own worktrees, and for the e2e starts the API and the fronts **from the integration worktrees** on free ports (`servers.sh`, recipes in `AGENTS.md`), so the browser tests the branch's code. One review packet covers every repo; `/open-pr` opens one linked PR per repo.
+
 ## What's inside
 
 - `skills/`: the workflow skills, plus `setup-workflow` with the templates.
-- `skills/deliver/scripts/worktree.sh`: worktrees for the orchestrator and its workers.
+- `skills/deliver/scripts/worktree.sh`: worktrees for the orchestrator and its workers, in this repo and related ones (`repo <name>`, `--repo <path>`).
+- `skills/deliver/scripts/servers.sh`: starts and stops the apps for the e2e from the integration worktrees, on free ports.
 - `skills/verify/`: `changed.sh` (what changed), `scripts/heavy.sh` (one heavy command at a time per machine), `scripts/ci-checks.sh` (the CI checks, from `project.json`).
 - `skills/setup-workflow/scripts/link-skills.mjs`: links the skills into `.claude/skills` where symlinks don't work (Windows).
 - `skills/render-html/`: fixed design and build script for the readable pages.

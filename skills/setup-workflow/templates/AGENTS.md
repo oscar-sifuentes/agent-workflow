@@ -89,6 +89,12 @@ Keep a PR to one zone when you can. Split a pure code move (verifiable with `git
 - A shared test database is used by others: use the test accounts file or new `e2e-` accounts, never run migrations on it without asking, and never run destructive SQL.
 - Test UIs in a headless browser session (`agent-browser` or the Playwright CLI), never in the developer's open browser.
 
+### Related repos and running from a worktree
+
+A spec can have tickets in other repos (`Repo:` line); `/deliver` finds them next to this repo, builds them in their own worktrees on `feat/<slug>`, and starts every app the e2e needs from the integration worktrees with `.agents/skills/deliver/scripts/servers.sh`, on free ports. Untracked env files are linked from each repo's main checkout, never edited.
+
+{{RUN_FROM_WORKTREE}}
+
 ## Docs upkeep (every change)
 
 1. Add one bullet under `## Unreleased` in `CHANGELOG.md` saying what changed and why.

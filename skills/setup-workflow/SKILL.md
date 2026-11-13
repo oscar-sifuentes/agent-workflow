@@ -56,7 +56,10 @@ Show the table and ask for corrections in one question. Then ask whether the pro
    | `{{CODE_STYLE}}` | The team's conventions, or "Not defined yet." plus "follow how the touched module is written" |
    | `{{PROTECTED_BRANCHES}}` | The confirmed protected branches, in backticks |
    | `{{README_LOCATIONS}}` | Where module READMEs live, for example ": `src/modules/<feature>/README.md`", or empty |
-   | `{{GUARD_NOTE}}` | " A hook blocks these in Claude Code." when the project has one, or empty | If `AGENTS.md` exists, merge section by section as above.
+   | `{{GUARD_NOTE}}` | " A hook blocks these in Claude Code." when the project has one, or empty |
+   | `{{RUN_FROM_WORKTREE}}` | How to start each app from a worktree for the e2e, one code block per app: `bash .agents/skills/deliver/scripts/servers.sh start <name> <port> <worktree> -- <command>`, with env overrides that move it to `<port>` and point it at the local infrastructure (hosts that only resolve inside containers become `localhost`), and for a front, the variable that points it at the API's port. Ask which related repos (fronts, admin apps) the developer builds with this one, and add one for each found next to it. "Not defined yet." when there is no runnable app |
+
+   If `AGENTS.md` exists, merge section by section as above.
 3. `CLAUDE.md` from `templates/CLAUDE.md` when Claude Code is installed or the file exists. If it exists without `@AGENTS.md`, add that line at the top.
 4. `.github/pull_request_template.md` from the template.
 5. `.github/workflows/pr-checks.yml`: fill `{{DEFAULT_BRANCH}}`, `{{INSTALL_COMMAND}}` and `{{SETUP_STEPS}}` (from `templates/workflows/setup-steps.md` for the stack). `.github/workflows/claude-review.yml` only if the developer wants the GitHub review; tell them it needs the Claude GitHub App and the `ANTHROPIC_API_KEY` secret, and optionally `CONTEXT7_API_KEY`.

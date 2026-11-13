@@ -14,7 +14,8 @@ Write the spec from what is already decided. Don't interview; if something essen
 2. Choose the **test seams**: the public boundaries the tests will exercise (a controller route, a service method, a guard). Prefer existing seams and the highest one that works. Fewer is better.
 3. **Check the library decisions against the docs.** For each decision that relies on how an external library or framework behaves (a framework guard or middleware, an ORM query or transaction, a validation rule, an HTTP client option, a vendor SDK), look it up with Context7 for the version the project's manifest pins, as `AGENTS.md` describes. If the docs disagree with the plan, fix the decision or raise it as an open question. Record what you checked under "Docs checked". Skip this step when the spec relies on no library behaviour.
 4. Pick a short kebab-case slug and write `docs/specs/<slug>/spec.md` with the template below, in the language set by `docsLanguage` in `.agents/project.json` (English when unset). Keep the template's headings so other skills can find the sections.
-5. Show the developer the zone, the invariants, the seams and any decision the docs changed. They approve the spec before `/to-tickets`.
+5. Run the `render-html` skill in `spec <slug>` mode (in Claude Code, the `html-renderer` sub-agent): there are no tickets yet, so the page shows the spec alone. The developer reads **the page**, not the markdown.
+6. Show the developer the page path (`.review/specs/<slug>/index.html`; on macOS `open <path>`) and, in a few lines, the zone, the repos, the invariants and any decision the docs changed. They approve the spec before `/to-tickets`. When they ask for changes, edit `spec.md` and render the page again.
 
 Don't put file paths or code in the spec, except a type or state machine that states a decision more precisely than prose.
 
@@ -24,6 +25,7 @@ Don't put file paths or code in the spec, except a type or state machine that st
 # <Title>
 
 - **Zone:** 🔴 red | 🟡 yellow | 🟢 green (and why, in one line)
+- **Repos:** <this repo> (and every related repo the change needs)
 - **Rollout / flag:** <who gets it>, `FEATURE_X_ENABLED` (unset = off)
 - **Status:** draft | approved
 

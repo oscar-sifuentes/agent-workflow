@@ -1,7 +1,7 @@
 ---
 name: deliver
 argument-hint: '<slug> [agents, e.g. "agy grok" or "red: codex, rest: grok"] [base: <branch>]'
-description: Orchestrate the whole build of an approved spec, from the tickets to a branch ready for the developer's review. Detects the runner (Orca, Herdr, or sub-agents), asks which agents build the tickets (default the same agent running this skill), creates one worktree per ticket, starts the workers, answers their questions, reviews each finished ticket and merges it into feat/<slug>, then checks the whole branch, runs the local e2e and writes the review packet. Use when the developer runs /deliver <slug> after approving the tickets.
+description: Orchestrate the whole build of an approved spec, from the tickets to a branch ready for the developer's review, across every repo its tickets name (related fronts or services, found next to this repo). Detects the runner (Orca, Herdr, or sub-agents), asks which agents build the tickets (default the same agent running this skill), creates one worktree per ticket, starts the workers, answers their questions, reviews each finished ticket and merges it into feat/<slug>, then checks the whole branch, runs the local e2e and writes the review packet. Use when the developer runs /deliver <slug> after approving the tickets.
 disable-model-invocation: true
 ---
 
@@ -34,6 +34,12 @@ After the one question at the start (section 1), **finish the delivery on your o
 - The **base** is the branch the developer names; **with no answer, the branch you are on now** (`git branch --show-current`). If you are on the default branch or a protected one (`defaultBranch`, `protectedBranches` in `.agents/project.json`), use `origin/<defaultBranch>` (fetch first) instead of the local branch.
 - Create (or reuse) the integration branch and its worktree, with dependencies installed once: `bash .agents/skills/deliver/scripts/worktree.sh integration <slug> <base>`. It prints the integration worktree path; **work from there for the rest of the delivery** (log, briefs, merges). Never work on the default branch.
 - The base must contain `.agents/` and `AGENTS.md`, or the workers won't find their instructions. If it doesn't, stop and say so.
+- **Related repos.** Read the `Repo:` line of every ticket (none means this repo). A ticket without the line that clearly belongs to another repo (its title or notes name another app, or files that aren't here) takes that repo: log it as a DECISION. For each other repo:
+  1. Find it: `bash .agents/skills/deliver/scripts/worktree.sh repo <name>` (a sibling folder whose name or `origin` is `<name>`). If it isn't found, that is one more thing to ask in section 1; with no answer, skip that repo's tickets and say so in the hand-over.
+  2. Its base is its default branch, fresh: `git -C <repo> fetch origin`, then `origin/<default>` (`git -C <repo> symbolic-ref --short refs/remotes/origin/HEAD`). Never the branch the developer has checked out there, and never touch that checkout.
+  3. Create its integration worktree: `bash .agents/skills/deliver/scripts/worktree.sh --repo <repo path> integration <slug> origin/<default>`. It prints `<repo parent>/<repo>--<slug>` on `feat/<slug>`, installs it, and links its untracked `.env*` files from the main checkout, so a server can start there.
+  4. Log `REPO <name>: <repo path> → <integration worktree>`.
+  A related repo doesn't need `.agents/` or `AGENTS.md`: its workers read the skills from this repo by absolute path.
 
 ## 1. Detect the runner, ask for the agents
 
@@ -55,6 +61,7 @@ A Herdr runner needs you inside a Herdr terminal (`HC_TERMINAL_ID`), so workers 
 - **No answer: every worker is your own agent.** Nothing defaults to a particular vendor.
 - Sub-agents can only be your own agent. If the developer picks another agent and the runner is sub-agents or none, use your own agent and log it as a decision.
 - Write the assignment (ticket → agent) and the runner in the log, show it, and start right away; this is the only question of the run.
+- **Fold into that same question, only when they apply:** a related repo that wasn't found (its path), and, when a ticket adds a migration, "may I run it on the **local** database for the e2e?" (no answer: no; the e2e of what needs it stays pending).
 
 Reviews, merges, the e2e and the review packet stay with you, whatever agents build the tickets.
 
@@ -62,7 +69,7 @@ Reviews, merges, the e2e and the review packet stay with you, whatever agents bu
 
 For each ticket you start:
 
-1. **Worktree.** From the integration worktree, for every runner: `bash .agents/skills/deliver/scripts/worktree.sh add NN`. It creates `feat/<slug>--NN` from the tip of `feat/<slug>` in `<integration worktree>--NN`, links `node_modules` from the integration worktree, prints the path, and reuses the worktree when you retry the same ticket. A ticket that changes `package.json` or `yarn.lock` replaces the link with its own install, through `heavy.sh`.
+1. **Worktree.** From the integration worktree **of the ticket's repo**, for every runner: `bash <this repo's integration worktree>/.agents/skills/deliver/scripts/worktree.sh add NN` (in this repo, `bash .agents/skills/deliver/scripts/worktree.sh add NN`). It creates `feat/<slug>--NN` from the tip of `feat/<slug>` in `<integration worktree>--NN`, links `node_modules` from the integration worktree, prints the path, and reuses the worktree when you retry the same ticket. A ticket that changes `package.json` or `yarn.lock` replaces the link with its own install, through `heavy.sh`.
 2. **Brief.** Write `.review/feat-<slug>/workers/NN-brief.md` from the template below, then pass its absolute path (or its text, when the runner needs it inline).
 3. **Report file.** The worker writes `<worktree>/.review/worker-report.md` (inside its own worktree, so sandboxed agents can write it; `.review/` is git-ignored) ending in `RESULT: done | failed | question`. **That file is the source of truth**; the runner's signal only wakes you.
 
@@ -75,7 +82,8 @@ Spec: docs/specs/<slug>/spec.md. Integration branch: feat/<slug>. Your branch: f
 Your worktree (stay in it): <absolute worktree path>.
 Report file: <absolute worktree path>/.review/worker-report.md.
 Runner: <Orca | Herdr | sub-agent>. Orchestrator: <Herdr: your HC_TERMINAL_ID; Orca: your coordinator, Orca routes it>.
-Run tests, tsc and Docker through .agents/skills/verify/scripts/heavy.sh. Never push, open a PR, merge into feat/<slug>, start other agents or touch another ticket.
+Repo: <this repo | related repo name>. Skills, spec and ticket: <absolute path of this repo's integration worktree>/ (read .agents/skills/implement-ticket/SKILL.md from there when you are in another repo).
+Run tests, tsc and Docker through <absolute path>/.agents/skills/verify/scripts/heavy.sh. Never push, open a PR, merge into feat/<slug>, start other agents or touch another ticket.
 Ask before guessing on money, auth, access or data exposure. When done, write the report file and signal as the skill says.
 ```
 
@@ -141,7 +149,7 @@ If an agent rejects a level or a model, use the nearest one it accepts, or none 
 
 ## 5. Build the tickets
 
-Work the **frontier**: the tickets whose blockers are all `done`.
+Work the **frontier**: the tickets whose blockers are all `done`, whatever their repo. Tickets in different repos never conflict, so they can build at the same time within the limits below.
 
 - **Red tickets run one at a time.** Yellow and green tickets run at most three workers at once, so the machine stays usable.
 - Heavy commands (tests, tsc, Docker) go through `.agents/skills/verify/scripts/heavy.sh`, so parallel workers never run two at once.
@@ -153,14 +161,14 @@ When a worker signals, read its report file:
 - **The agent can't go on** (usage or rate limit, login expired, crashed, stuck on a prompt only a person can answer such as an upgrade, payment or login screen): don't answer that screen and don't ask the developer. Stop that worker and **retry the ticket with the next agent from the developer's list, then with your own agent**, in the same worktree, with the "continue from the previous worker's work" note. Log it.
 - **`RESULT: done`**:
   1. Check: the commit in the report is the tip of `feat/<slug>--NN`, the worker touched only its worktree, and nothing was pushed (`git ls-remote origin feat/<slug>--NN` is empty).
-  2. Run the `risk-review` skill on the ticket branch against `feat/<slug>`. For a red ticket, also the `code-review` skill.
+  2. Run the `risk-review` skill on the ticket branch against `feat/<slug>` **of its repo** (in another repo, run its git commands with `git -C <that integration worktree>`; its conventions come from that repo's `AGENTS.md` or README, the domain and security rules from this one). For a red ticket, also the `code-review` skill.
   3. On a `blocker` or `major` finding, send the findings to the same worker. Escalate as section 4 says: effort, then model tier, then **another agent from the developer's list in the same worktree**, so it continues from the existing work. After that, stop and ask.
-  4. **Merge the ticket branch into `feat/<slug>`** with `--no-ff`. You do every merge, one at a time, and **resolve conflicts yourself**: the tickets come from the same spec, so keep both sides' intent (for example, both CHANGELOG bullets). Only a conflict inside red-zone logic whose right result you can't tell goes back to the worker that built the ticket, at least high / deep. Mark the ticket `done`.
+  4. **Merge the ticket branch into `feat/<slug>` of its repo** (in that repo's integration worktree) with `--no-ff`. You do every merge, one at a time, and **resolve conflicts yourself**: the tickets come from the same spec, so keep both sides' intent (for example, both CHANGELOG bullets). Only a conflict inside red-zone logic whose right result you can't tell goes back to the worker that built the ticket, at least high / deep. Mark the ticket `done`.
   5. Copy its report to `.review/feat-<slug>/workers/NN-report.md`, clean up the worker and its worktree (runner table), and start the tickets this merge unblocked.
 
 ## 6. Check the whole branch
 
-On `feat/<slug>` against the base (so only this delivery's changes are reviewed):
+On `feat/<slug>` against the base (so only this delivery's changes are reviewed), **in every repo of the delivery**. In a related repo without `.agents/`, "verify" means its own lint, typecheck and tests on the changed files, through this repo's `heavy.sh`:
 
 0. **Only when a `simplify` skill is available to you:** check your own list of skills or slash commands for `simplify` (Claude Code bundles it, unless `disableBundledSkills` is on). If it isn't there (another agent, an older version, bundled skills off), skip this step without asking or installing anything, and log `simplify: not available`. If it is, run it on the delivery's diff against the base. Workers on different agents repeat helpers and drift in style; this cleans that up before anyone reviews it. It edits code, so:
    - keep only cleanups that don't change behaviour; revert any edit to a test that proves a spec invariant, and any change to an amount, a guard, a transaction or an idempotency key;
@@ -177,13 +185,21 @@ Then **consolidate the open questions**: copy every open question from the worke
 
 ## 7. E2E, locally
 
-Skip this step only when the spec's "E2E scenarios" section says it is not applicable (no runtime behaviour changes); say so in the log and the packet. Otherwise run the `dev-env` skill, then the `e2e` skill. If no environment is running, **don't start one and don't wait**: finish everything else, mark the e2e as pending in the packet, and ask about the environment in your hand-over message. A failing scenario goes back to a worker for the ticket it belongs to, then the e2e runs again.
+Skip this step only when the spec's "E2E scenarios" section says it is not applicable (no runtime behaviour changes); say so in the log and the packet.
+
+The e2e must run **the delivery's code**, so start the apps yourself from the integration worktrees, without asking:
+
+1. Run the `dev-env` skill only to check the **infrastructure** the apps need (database, cache, queues). If it is down, don't start it: finish everything else, mark the e2e as pending, and ask about it in the hand-over.
+2. Start each app the scenarios need with `.agents/skills/deliver/scripts/servers.sh`, from its integration worktree, on a free port (`servers.sh free-port <from>`), as "Run from a worktree" in `AGENTS.md` says. Point each front at the API you started, not at the developer's. An app not listed there: derive the command from its `package.json` (`dev` script) and README, log it as a DECISION, and propose the entry for `AGENTS.md` in the hand-over.
+3. A migration of this delivery runs on the local database only if the developer said yes in section 1; otherwise the scenarios that need it are pending. Never a container build, never a shared or remote database.
+4. Run the `e2e` skill against those URLs. A failing scenario goes back to a worker for the ticket it belongs to; restart that app, then run the e2e again.
+5. `bash .agents/skills/deliver/scripts/servers.sh stop` when the e2e is done, even when it failed.
 
 ## 8. Hand over
 
-1. Run the `review-packet` skill. List the runner, which agent and model built each ticket, every effort or model change, and every `DECISION` from the log.
-2. Make sure no worker is left running and no ticket worktree is left over (`git worktree list`). Keep the integration worktree: the developer reviews there, and `/open-pr` closes it once the PR is open.
-3. Tell the developer it is ready for their review: the branch, the review page (`.review/<branch>/review.html`) and the packet path, and one line each for the zone, the tests, the e2e result, the decisions you made and any open question. Send a push notification if the tool has one.
+1. Run the `review-packet` skill: **one packet for the whole delivery**, with a section per repo (branch, files, zone). List the runner, which agent and model built each ticket, every effort or model change, and every `DECISION` from the log.
+2. Make sure no worker or app is left running (`bash .agents/skills/deliver/scripts/servers.sh status`) and no ticket worktree is left over (`git worktree list`, and `git -C <repo> worktree list` for each related repo). Keep the integration worktree: the developer reviews there, and `/open-pr` closes it once the PR is open.
+3. Tell the developer it is ready for their review: the branch in each repo with its integration worktree path, the review page (`.review/<branch>/review.html`) and the packet path, and one line each for the zone, the tests, the e2e result, the decisions you made and any open question. Send a push notification if the tool has one.
 
 ## Decide on your own (log it as a DECISION)
 
