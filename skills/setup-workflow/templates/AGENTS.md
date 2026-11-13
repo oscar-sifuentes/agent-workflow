@@ -55,7 +55,7 @@ When you are a worker:
 - Never push, open a PR, or merge into the integration branch. Commit locally, write the report file and signal; the orchestrator reviews and merges.
 - Ask the orchestrator instead of guessing on anything in the red zone.
 
-The skills live in `.agents/skills/` and come from the agent-workflow kit: never edit them here (`npx skills update` overwrites them). Put project rules in this file and settings in `.agents/project.json`.
+The skills live in `.agents/skills/` and come from the agent-workflow kit: never edit them here (`npx skills update` overwrites them). Put project rules in this file and settings in `.agents/project.json`. If an agent doesn't see the skills (common on Windows, where git checks symlinks out as text files), run `node .agents/skills/setup-workflow/scripts/link-skills.mjs`.
 
 <!-- PROJECT: proposed by /setup-workflow from the code, confirmed by the developer. -->
 ## Risk zones

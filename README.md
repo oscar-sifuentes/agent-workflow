@@ -29,6 +29,16 @@ It detects the stack, the commands, your agents and runners, asks the language f
 
 It also suggests official skills for your stack (see [recommended-skills.md](skills/setup-workflow/recommended-skills.md)). Review the result and commit it yourself.
 
+### Windows
+
+Claude Code reads skills from `.claude/skills`, which are symlinks to `.agents/skills`. Git on Windows checks symlinks out as small text files unless Developer Mode is on and `core.symlinks` is true, so Claude Code sees no skills. Fix it in the clone:
+
+```bash
+node .agents/skills/setup-workflow/scripts/link-skills.mjs
+```
+
+It links each skill (symlink, else a junction, which needs no admin, else a copy) and tells git to ignore the local change. Run it again after `npx skills update` if it had to copy.
+
 ## Update
 
 ```bash
@@ -61,6 +71,7 @@ Green-zone changes skip the plan: change → `/verify` → `/risk-review` → PR
 - `skills/`: the workflow skills, plus `setup-workflow` with the templates.
 - `skills/deliver/scripts/worktree.sh`: worktrees for the orchestrator and its workers.
 - `skills/verify/`: `changed.sh` (what changed), `scripts/heavy.sh` (one heavy command at a time per machine), `scripts/ci-checks.sh` (the CI checks, from `project.json`).
+- `skills/setup-workflow/scripts/link-skills.mjs`: links the skills into `.claude/skills` where symlinks don't work (Windows).
 - `skills/render-html/`: fixed design and build script for the readable pages.
 
 ## Changing the kit

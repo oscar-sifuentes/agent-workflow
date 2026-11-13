@@ -10,6 +10,7 @@
 # 4. ci-checks.sh ignores the kit's own files and substitutes {files}.
 # 5. No private names (project, company, people) anywhere in the kit.
 # 6. Templates: valid JSON, and every {{PLACEHOLDER}} is documented in setup-workflow.
+# 7. link-skills.mjs repairs a Windows-style checkout (symlink as a text file).
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 fail=0
@@ -76,5 +77,18 @@ for p in $(grep -rhoE '\{\{[A-Z_]+\}\}' "$t" | sort -u); do
   grep -qF "$p" "$root/skills/setup-workflow/SKILL.md" || { bad "placeholder $p not documented in setup-workflow"; missing=1; }
 done
 [ "$missing" = 0 ] && ok "placeholders documented"
+
+# 7. link-skills on a checkout without symlinks (as on Windows)
+w="$tmp/win"; mkdir -p "$w"
+(
+  cd "$w"
+  git init -q && git config user.email t@t && git config user.name t
+  mkdir -p .agents/skills .claude && cp -R "$root/skills/." .agents/skills/
+  ln -s ../.agents/skills .claude/skills && git add -A && git commit -qm base
+  git config core.symlinks false && rm .claude/skills && git checkout -- .claude/skills
+  [ -f .claude/skills ] || exit 1
+  node .agents/skills/setup-workflow/scripts/link-skills.mjs > /dev/null
+  [ -f .claude/skills/deliver/SKILL.md ] && [ -z "$(git status --porcelain)" ]
+) && ok "link-skills repairs a symlink-less checkout" || bad "link-skills"
 
 exit "$fail"

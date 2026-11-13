@@ -21,3 +21,30 @@ jobs:
         run: bash scripts/check-kit.sh
         env:
           PRIVATE_NAMES: ${{ secrets.PRIVATE_NAMES }}
+
+  windows-links:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: link-skills on a Windows checkout
+        run: |
+          w="$RUNNER_TEMP/win" && mkdir -p "$w" && cd "$w"
+          git init -q && git config user.email t@t && git config user.name t
+          git config core.symlinks false
+          mkdir -p .agents/skills && cp -R "$GITHUB_WORKSPACE/skills/." .agents/skills/
+          git add -A
+          # Commit .claude/skills as a real symlink, as a Mac or Linux clone would.
+          blob=$(printf '../.agents/skills' | git hash-object -w --stdin)
+          git update-index --add --cacheinfo 120000,"$blob",.claude/skills
+          git commit -qm base && git checkout -- .claude/skills
+          test -f .claude/skills
+          node .agents/skills/setup-workflow/scripts/link-skills.mjs
+          test -f .claude/skills/deliver/SKILL.md
+          test -z "$(git status --porcelain)"
