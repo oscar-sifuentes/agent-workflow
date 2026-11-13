@@ -1,0 +1,112 @@
+<!--
+  Component reference for the render-html skill. Every class below is styled by
+  shell.html; use only these. Copy the pieces you need into the body file.
+  Preview: node .agents/skills/render-html/build.mjs .agents/skills/render-html/components.html /tmp/components.html "Components"
+-->
+
+<!-- Sticky table of contents: one link per <h2 id> -->
+<nav class="topbar"><div class="page">
+  <a href="#summary">Summary</a><a href="#tickets">Tickets</a><a href="#invariants">Invariants</a><a href="#questions">Questions</a>
+</div></nav>
+
+<div class="page">
+
+<!-- Hero: what this is, in one sentence, and its key facts as chips -->
+<header class="hero">
+  <div class="eyebrow">Spec · approved</div>
+  <h1>Payment webhook</h1>
+  <p class="lede">Credit a user's balance once, and only once, when the payment provider confirms a deposit, with the amount it actually charged.</p>
+  <div class="meta">
+    <span class="zone red">Red zone</span>
+    <span class="chip">5 tickets</span>
+    <span class="chip">7 invariants</span>
+    <span class="chip">docs/specs/payment-webhook/</span>
+  </div>
+</header>
+
+<!-- Stats: 3 to 5 numbers that matter. Color only when the number is good (green) or a risk (red) -->
+<div class="stats">
+  <div class="stat"><div class="num">5</div><div class="label">tickets</div></div>
+  <div class="stat red"><div class="num">3</div><div class="label">red-zone tickets</div></div>
+  <div class="stat green"><div class="num">7/7</div><div class="label">invariants with a test</div></div>
+  <div class="stat yellow"><div class="num">2</div><div class="label">open questions</div></div>
+</div>
+
+<!-- Callouts: info, warn, danger, ok. One idea each -->
+<div class="callout danger"><span class="icon">⚠️</span><div><strong>Money moves here.</strong> A replayed webhook must never credit twice.</div></div>
+<div class="callout ok"><span class="icon">✅</span><div>All checks passed on the whole branch.</div></div>
+
+<h2 id="summary">Summary</h2>
+<p class="sub">One line under each section title that says why it matters.</p>
+
+<!-- Cards: parallel items (goals, user stories, risks, zones) -->
+<div class="cards">
+  <div class="card red"><h4>User is credited once</h4><p>Same event id twice → one credit.</p></div>
+  <div class="card yellow"><h4>History shows the deposit</h4><p>Activity list includes the deposit.</p></div>
+  <div class="card green"><h4>Docs</h4><ul><li>README of the payment module</li><li>CHANGELOG</li></ul></div>
+</div>
+
+<!-- Ticket waves: one .wave per dependency level (tickets with no blockers first) -->
+<h2 id="tickets">Tickets</h2>
+<p class="sub">Each column can start when the previous one is merged.</p>
+<div class="waves">
+  <div class="wave">
+    <div class="wave-label">Start now</div>
+    <div class="ticket red"><div class="no">01</div><div class="title">Signature guard</div><div class="what">HMAC over the raw body, fail closed.</div><span class="zone red">Red</span> <span class="deps">· blocked by none</span></div>
+  </div>
+  <div class="wave">
+    <div class="wave-label">After 01</div>
+    <div class="ticket red"><div class="no">02</div><div class="title">Credit once per event</div><div class="what">Unique key on the event id.</div><span class="zone red">Red</span> <span class="deps">· blocked by 01</span></div>
+    <div class="ticket yellow"><div class="no">03</div><div class="title">Activity entry</div><div class="what">Show the deposit in history.</div><span class="zone yellow">Yellow</span> <span class="deps">· blocked by 01</span></div>
+  </div>
+</div>
+
+<!-- Must read: the review packet's list. Most dangerous first; .why says what to check -->
+<h2 id="must-read">Must read</h2>
+<ol class="must">
+  <li><span class="loc">src/payments/webhook.guard.ts:12-58</span><span class="why">HMAC over the raw body, constant-time compare, refuses when the key is missing.</span></li>
+  <li><span class="loc">src/payments/webhook.service.ts:40-95</span><span class="why">Amount compared with what the provider charged, not with the client value.</span></li>
+</ol>
+
+<!-- Tables: invariants → tests, e2e scenarios, who built it. Wrap in .tbl-wrap -->
+<h2 id="invariants">Invariants</h2>
+<div class="tbl-wrap"><table class="tbl">
+  <tr><th>#</th><th>Invariant</th><th>Test</th><th>Result</th></tr>
+  <tr><td>1</td><td>Bad signature → 403, balance unchanged</td><td><code>webhook.guard.spec.ts:20</code></td><td><span class="pill pass">pass</span></td></tr>
+  <tr><td>2</td><td>Same event twice → one credit</td><td><code>webhook.service.spec.ts:44</code></td><td><span class="pill pend">pending</span></td></tr>
+</table></div>
+
+<!-- Checklist: acceptance criteria or done/pending items -->
+<ul class="checks">
+  <li class="ok">Guard rejects a missing key</li>
+  <li class="pending">Sandbox e2e</li>
+  <li class="fail">Ledger row for refunds</li>
+</ul>
+
+<!-- Steps: a flow or a scenario in order -->
+<ol class="steps">
+  <li><strong>User e2e-dep-1 starts with 100.00 credit</strong><span>Balance read from the account endpoint.</span></li>
+  <li><strong>The provider posts the event twice</strong><span>Both return 200.</span></li>
+  <li><strong>Balance is 150.00 credit</strong><span>One credit row for the event id.</span></li>
+</ol>
+
+<!-- Questions and decisions: .open for unanswered, .decided for what the agent chose -->
+<h2 id="questions">Open questions</h2>
+<div class="qa">
+  <div class="item open"><div class="q">Should a partial refund reverse the bonus?</div><div class="a">Blocks ticket 04.</div></div>
+  <div class="item decided"><div class="q">Event id or payment id as the idempotency key?</div><div class="a">Event id: provider retries reuse it. (orchestrator, ticket 02)</div></div>
+</div>
+
+<!-- Screenshots: paths relative to the output file -->
+<div class="shots">
+  <figure><img src="screenshots/01-balance.png" alt="Balance after deposit"><figcaption>Balance after the deposit</figcaption></figure>
+</div>
+
+<!-- Code or a short diff excerpt -->
+<pre><span class="del">- if (balance &gt;= debit)</span>
+<span class="add">+ if (debit &gt; 0 &amp;&amp; balance &gt;= debit)</span></pre>
+
+<!-- Long content the reader may skip -->
+<details><summary>Full acceptance criteria (12)</summary><ul class="checks"><li class="ok">…</li></ul></details>
+
+</div>

@@ -1,0 +1,88 @@
+name: Claude review
+
+# An independent agent review of every PR that is ready for review, using the
+# repo's own rules (AGENTS.md, .agents/skills/risk-review/SKILL.md). It labels the
+# risk zone, posts inline comments on the lines a person must read, and a
+# summary for the lead reviewer. It never approves: the lead review is required.
+#
+# Needs: the Claude GitHub App installed on the repo and the ANTHROPIC_API_KEY
+# secret. Re-run on demand with the "claude-review" label.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, labeled]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  id-token: write
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: >-
+      github.event.pull_request.draft == false &&
+      (github.event.action != 'labeled' || github.event.label.name == 'claude-review')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Review
+        uses: anthropics/claude-code-action@v1
+        env:
+          # Optional. Without it the docs check (step 3b) is skipped.
+          CONTEXT7_API_KEY: ${{ secrets.CONTEXT7_API_KEY }}
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            REPO: ${{ github.repository }}
+            PR NUMBER: ${{ github.event.pull_request.number }}
+            BASE: origin/${{ github.base_ref }}
+            DOCS CHECK: ${{ secrets.CONTEXT7_API_KEY != '' && 'on' || 'off' }}
+
+            You are the independent reviewer of this PR. The PR branch is checked out.
+            You did not write this code. Do not edit files or push.
+
+            1. Read AGENTS.md (risk zones, domain rules, code style) and
+               .agents/skills/risk-review/SKILL.md. Review the diff against BASE exactly
+               as that skill describes: classify every file by zone, read red-zone
+               lines and what they call, and prove each finding with file:line and a
+               concrete scenario. Drop what you cannot prove.
+            2. If the PR names a spec (docs/specs/<slug>/), check that every invariant
+               in it has a test, and flag behaviour the spec did not ask for.
+            3. Read the PR description. Its "Must read" list should cover every
+               changed red-zone range; name any it misses.
+            3b. Only when DOCS CHECK is on: follow the Docs axis of
+               .agents/skills/code-review/SKILL.md (steps 4 and the Docs brief). Use
+               `npx ctx7@latest library` and `npx ctx7@latest docs` for at most five
+               packages the diff touches, with the versions in the project's manifest, and
+               report API usage the docs contradict. If Context7 errors, say so in
+               the summary; never answer from memory.
+            4. Label the PR with its zone: run `gh pr edit <n> --add-label risk:red`
+               (or risk:yellow / risk:green), removing a stale risk:* label.
+            5. Post inline comments with
+               mcp__github_inline_comment__create_inline_comment (confirmed: true):
+               - one per finding, starting with its severity (blocker / major / minor)
+               - one "👀 Reviewer: check <what>" on each red range a person must read,
+                 even without a finding, so the lead reviewer can step through them
+            6. Post one summary with `gh pr comment`, titled "Summary for the reviewer":
+               - zone and file counts
+               - what the PR does, in three lines
+               - the must-read ranges in order, with an estimate of the reading time
+               - invariants and their tests, and invariants with no test
+               - findings by severity, and what you could not verify
+               - docs check: the libraries checked and any mismatch, or "off"
+               - a verdict: "ready for lead review" or "needs changes first"
+
+            Write in English. Be concise. Never approve the PR.
+          claude_args: |
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr edit:*),Bash(git diff:*),Bash(git log:*),Bash(npx ctx7@latest library:*),Bash(npx ctx7@latest docs:*),Read,Grep,Glob"

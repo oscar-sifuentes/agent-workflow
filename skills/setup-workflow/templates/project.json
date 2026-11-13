@@ -1,0 +1,36 @@
+{
+  "docsLanguage": "en",
+  "defaultBranch": "main",
+  "protectedBranches": ["main"],
+  "commands": {
+    "install": "npm ci",
+    "format": "npx prettier --write {files}",
+    "formatCheck": "npx prettier --check {files}",
+    "lint": "npx eslint {files}",
+    "typecheck": "npx tsc --noEmit",
+    "test": "npx jest {files} --maxWorkers=1"
+  },
+  "paths": {
+    "specs": "docs/specs",
+    "research": "docs/research",
+    "adr": "docs/adr",
+    "glossary": "GLOSSARY.md",
+    "testAccounts": "docs/e2e/test-accounts.md"
+  },
+  "environments": {
+    "local": {
+      "services": [{ "name": "app", "url": "http://localhost:3000", "health": "/" }],
+      "start": "",
+      "startDir": "",
+      "docs": "README.md"
+    },
+    "shared": [{ "name": "staging", "urls": {}, "deploy": "ask the developer" }]
+  },
+  "models": {
+    "claude": { "fast": "haiku", "standard": "sonnet", "deep": "opus" },
+    "codex": { "fast": "", "standard": "", "deep": "" },
+    "gemini": { "fast": "", "standard": "", "deep": "" },
+    "grok": { "fast": "", "standard": "", "deep": "" },
+    "agy": { "fast": "", "standard": "", "deep": "" }
+  }
+}

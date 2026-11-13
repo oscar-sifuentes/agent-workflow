@@ -1,0 +1,36 @@
+name: PR checks
+
+# Format, lint, typecheck and the tests of the files a PR changes: the same
+# checks /verify runs locally, with the commands in .agents/project.json.
+# Only type errors in changed files fail the job.
+
+on:
+  pull_request:
+    branches: ["{{DEFAULT_BRANCH}}"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Format, lint, types, tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+{{SETUP_STEPS}}
+
+      - name: Install
+        run: {{INSTALL_COMMAND}}
+
+      - name: Checks on changed files
+        run: bash .agents/skills/verify/scripts/ci-checks.sh "origin/${{ github.base_ref }}"
