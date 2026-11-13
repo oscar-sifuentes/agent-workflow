@@ -35,6 +35,12 @@ Keep the list to the **five packages most involved in red-zone or behaviour-chan
 
 **Docs sub-agent.** Give it the diff command, the package list with versions, and the "Docs checked" table of the spec if there is one. Brief: "For each package, use the Context7 CLI as AGENTS.md describes (`npx ctx7@latest library`, then `docs` with the version), at most 3 commands per package. Compare how the diff uses the API with the docs for that version. Report: deprecated or removed APIs, wrong or missing options, defaults that change behaviour (timeouts, transactions, validation, serialization), and usage the docs warn against. Quote the hunk and cite the doc (library id and what it says). If Context7 fails (quota, login), stop and report that instead of answering from memory. Under 400 words."
 
+If you can't start sub-agents, run the three axes yourself one after another, each as its own pass with only that axis's inputs.
+
 ## 6. Report
 
 Show the reports under `## Standards`, `## Spec` and `## Docs`, without merging or reranking them. End with one line: findings per axis and the worst one in each.
+
+## As a /deliver reviewer
+
+When a `/deliver` brief starts you, you didn't build this code: use only the brief's inputs, don't read `.review/worker-report.md`, and edit nothing. Write the report to the file in the brief, ending with `RESULT: pass` (no hard violation, missing requirement or wrong API use), `RESULT: findings` or `RESULT: failed` (say why), and signal as a worker does.

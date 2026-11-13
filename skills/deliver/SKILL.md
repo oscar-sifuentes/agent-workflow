@@ -63,7 +63,7 @@ A Herdr runner needs you inside a Herdr terminal (`HC_TERMINAL_ID`), so workers 
 - Write the assignment (ticket → agent) and the runner in the log, show it, and start right away; this is the only question of the run.
 - **Fold into that same question, only when they apply:** a related repo that wasn't found (its path), and, when a ticket adds a migration, "may I run it on the **local** database for the e2e?" (no answer: no; the e2e of what needs it stays pending).
 
-Reviews, merges, the e2e and the review packet stay with you, whatever agents build the tickets.
+Merges, the decision on every review finding, the e2e and the review packet stay with you, whatever agents build the tickets. **The reviews themselves never run in your context**: fresh reviewers do them (section 2b).
 
 ## 2. The worker contract
 
@@ -85,6 +85,28 @@ Runner: <Orca | Herdr | sub-agent>. Orchestrator: <Herdr: your HC_TERMINAL_ID; O
 Repo: <this repo | related repo name>. Skills, spec and ticket: <absolute path of this repo's integration worktree>/ (read .agents/skills/implement-ticket/SKILL.md from there when you are in another repo).
 Run tests, tsc and Docker through <absolute path>/.agents/skills/verify/scripts/heavy.sh. Never push, open a PR, merge into feat/<slug>, start other agents or touch another ticket.
 Ask before guessing on money, auth, access or data exposure. When done, write the report file and signal as the skill says.
+```
+
+## 2b. Reviewers
+
+A review is only worth something if the reviewer didn't build the code and isn't invested in finishing the delivery. So:
+
+- **Never the builder, never you.** Every `risk-review` and `code-review` runs in a **new agent with a clean context**, started through the runner like a worker (Orca `worker-start`, Herdr `hc run`, or a sub-agent; in Claude Code, the `risk-reviewer` agent for risk). With no runner and no sub-agents, start one with the non-interactive mode of an installed agent CLI (`claude -p`, `codex exec`, `gemini -p`, `grok -p`, `agy -p`) in the worktree under review. Only when none of these exists, review yourself in a separate pass that reads only the reviewer inputs below, and log `REVIEW: no fresh reviewer available`.
+- **Another agent for red work.** For a red ticket or a red branch, the reviewer is a different agent (or at least a different model) from the one that built it, when the developer's list has more than one; otherwise the same agent, fresh, at the deep tier. Yellow and green: any agent, fresh; by default your own as a sub-agent.
+- **Inputs only:** the diff (`<base>` and the branch), the spec, the ticket, `AGENTS.md` (and the related repo's own rules). **Not the worker's report**, so the reviewer doesn't anchor on "already tested"; you compare the two afterwards.
+- **Read-only.** The reviewer edits nothing and runs no heavy command. It works in the worktree under review: the ticket worktree for a ticket, the integration worktree for the whole branch.
+- **Report file:** `<that worktree>/.review/review-<risk|code>.md`, ending in `RESULT: pass | findings | failed`. Copy it to `.review/feat-<slug>/reviews/<NN|branch>-<risk|code>.md` before the worktree goes away.
+- **In parallel.** `risk-review` and `code-review` of the same target start together; they only read. They don't count toward the worker limit, but run at most two reviewers at once.
+- **You decide.** Read both reports. Merge duplicate findings (same `file:line`, same problem) into one. Check that each `blocker` or `major` names a real `file:line` and a concrete scenario; drop what doesn't hold and log why. Send what holds to a worker, and record every `minor` in the packet.
+
+Reviewer brief:
+
+```text
+You are a reviewer for /deliver. You did not build this code.
+Run the <risk-review | code-review> skill (.agents/skills/<skill>/SKILL.md; absolute path: <path>) on <worktree>, base <base ref>, branch <branch>.
+Zone: <zone>. Spec: <path>. Ticket: <path or "whole branch">. Rules: AGENTS.md<, and <related repo>'s own AGENTS.md or README>.
+Read-only: edit nothing, run no tests or builds, don't read .review/worker-report.md.
+Write your findings to <worktree>/.review/review-<risk|code>.md, ending with RESULT: pass | findings | failed, then signal as a worker does.
 ```
 
 ## 3. Runner commands
@@ -161,7 +183,7 @@ When a worker signals, read its report file:
 - **The agent can't go on** (usage or rate limit, login expired, crashed, stuck on a prompt only a person can answer such as an upgrade, payment or login screen): don't answer that screen and don't ask the developer. Stop that worker and **retry the ticket with the next agent from the developer's list, then with your own agent**, in the same worktree, with the "continue from the previous worker's work" note. Log it.
 - **`RESULT: done`**:
   1. Check: the commit in the report is the tip of `feat/<slug>--NN`, the worker touched only its worktree, and nothing was pushed (`git ls-remote origin feat/<slug>--NN` is empty).
-  2. Run the `risk-review` skill on the ticket branch against `feat/<slug>` **of its repo** (in another repo, run its git commands with `git -C <that integration worktree>`; its conventions come from that repo's `AGENTS.md` or README, the domain and security rules from this one). For a red ticket, also the `code-review` skill.
+  2. Start the reviewers (section 2b) on the ticket worktree, base `feat/<slug>` **of its repo**: `risk-review`, and for a red ticket `code-review` at the same time. In another repo, its conventions come from that repo's `AGENTS.md` or README, the domain and security rules from this one. Wait for both reports and decide on the findings.
   3. On a `blocker` or `major` finding, send the findings to the same worker. Escalate as section 4 says: effort, then model tier, then **another agent from the developer's list in the same worktree**, so it continues from the existing work. After that, stop and ask.
   4. **Merge the ticket branch into `feat/<slug>` of its repo** (in that repo's integration worktree) with `--no-ff`. You do every merge, one at a time, and **resolve conflicts yourself**: the tickets come from the same spec, so keep both sides' intent (for example, both CHANGELOG bullets). Only a conflict inside red-zone logic whose right result you can't tell goes back to the worker that built the ticket, at least high / deep. Mark the ticket `done`.
   5. Copy its report to `.review/feat-<slug>/workers/NN-report.md`, clean up the worker and its worktree (runner table), and start the tickets this merge unblocked.
@@ -176,8 +198,7 @@ On `feat/<slug>` against the base (so only this delivery's changes are reviewed)
    - log it as a `DECISION` with a one-line summary.
    When it's skipped, the Standards axis of `code-review` covers part of it.
 1. the `verify` skill
-2. the `risk-review` skill, on the whole diff
-3. the `code-review` skill, when any ticket is red
+2. then, in parallel, fresh reviewers (section 2b) on the integration worktree against the base: `risk-review` on the whole diff, and `code-review` when any ticket is red. A ticket's reviewer already saw its diff alone; these look for what only shows across tickets (two tickets touching one flow, a helper repeated, an invariant split between them).
 
 Fix through a worker (the agent that built that ticket, or another): create a fix worktree with `worktree.sh add NNb` and brief exactly what to change. The same limit of 2 rounds applies. When the fix is small and the zone is green, the whole-branch `verify` after the merge is its review.
 
@@ -208,6 +229,7 @@ The e2e must run **the delivery's code**, so start the apps yourself from the in
 - answers to worker questions the spec, the code or `AGENTS.md` answer, including test conventions and tooling choices inside the spec's zone that add no dependency
 - merge conflicts between tickets of this delivery
 - fixing review findings through a worker, up to the limits
+- which agent reviews (section 2b), and dropping a finding that doesn't hold, with the reason
 - a minor finding: fix it if cheap, otherwise record it in the packet
 - skipping a step the spec marks as not applicable
 

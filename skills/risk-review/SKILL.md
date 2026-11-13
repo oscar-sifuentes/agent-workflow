@@ -66,6 +66,10 @@ A PR's zone is the highest zone among its files.
 
 **🟢 Green: skim.** Flag only factual errors.
 
+## As a /deliver reviewer
+
+When a `/deliver` brief starts you, you are a fresh reviewer: you didn't build this code. Use only the inputs in the brief (diff, spec, ticket, rules); don't read `.review/worker-report.md`, and edit nothing. Write the output below to the report file in the brief, end it with `RESULT: pass` (no blocker or major), `RESULT: findings` or `RESULT: failed` (you couldn't review; say why), and signal as a worker does.
+
 ## Prove each finding
 
 Before reporting a finding, trace the call path, or name the concrete input that triggers it. Drop anything you can't back with a `file:line`. False positives cost trust.
