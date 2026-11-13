@@ -29,6 +29,13 @@ After the one question at the start (section 1), **finish the delivery on your o
 
 ## 0. Check the start
 
+**Resume first.** If `feat/<slug>` and `.review/feat-<slug>/deliver-log.md` already exist, a previous run stopped (a usage limit, a crash, a closed terminal) and this run **continues it**; whoever runs `/deliver <slug>` again, with any agent, becomes the orchestrator. Log `RESUME <date> by <agent>`, then:
+- Reuse the integration worktree, the related repos' worktrees and the runner, agents and fallback chain in the log. **Don't ask section 1 again.**
+- Tickets marked `done` stay done. For each ticket `in-progress`: a report file with a `RESULT` line → process it as section 5 says; a worker the runner still shows running → wait for it; otherwise → start it again in its existing worktree with the next entry of the fallback chain and the "continue from the previous worker's work" note.
+- A review with no report file runs again with a fresh reviewer. Servers left running: `servers.sh stop`, then start them again when the e2e needs them.
+- Then continue from the first step the log doesn't show as finished. The checks below that create things (worktrees, branches) are skipped when they already exist.
+
+
 - `docs/specs/<slug>/spec.md` exists with status `approved`, and `tickets/` has at least one `ready` ticket. If not, stop and say which step is missing (`/to-spec`, `/to-tickets`).
 - The working tree is clean.
 - The **base** is the branch the developer names; **with no answer, the branch you are on now** (`git branch --show-current`). If you are on the default branch or a protected one (`defaultBranch`, `protectedBranches` in `.agents/project.json`), use `origin/<defaultBranch>` (fetch first) instead of the local branch.
@@ -58,7 +65,13 @@ A Herdr runner needs you inside a Herdr terminal (`HC_TERMINAL_ID`), so workers 
 > Base: **<current branch>**. Runner: **<detected>**. Which agents should build the N tickets? Press enter for **<your own agent>** (the agent running this orchestrator) and this base.
 > Options: `<your own agent>`, `claude`, `codex`, `grok`, `agy`, or a mix such as `red: codex, rest: grok,agy` (round-robin within each group). Add a model with `agent:model` (otherwise the tiers in `.agents/project.json` decide). You can also change the base or the runner.
 
+- **Which agents are installed** is detected, not asked: `command -v claude codex gemini grok agy cursor-agent copilot`. Offer only those in the question.
 - **No answer: every worker is your own agent.** Nothing defaults to a particular vendor.
+- **Fallback chain**, for when an agent hits its usage limit (section 5). Build it once and write it in the log:
+  1. **other models of the same agent first** (some agents have a separate quota per model; Antigravity's is per model, every 5 hours): the models `models` of `.agents/project.json` (or `.agents/project.local.json`) lists for it, strongest first, or, when the agent lists its models itself (`agy models`), those, keeping the same family before switching to another (for example Antigravity's Gemini models, then its Claude models);
+  2. then the developer's agents, in their order;
+  3. then the other **installed** agents, then your own.
+  `fallback` in `models` of `.agents/project.json` (or `.agents/project.local.json`) (a list such as `["agy:<model>", "agy:<model>", "claude", "codex"]`) replaces this order when it is set; each developer can set it in the local override.
 - Sub-agents can only be your own agent. If the developer picks another agent and the runner is sub-agents or none, use your own agent and log it as a decision.
 - Write the assignment (ticket → agent) and the runner in the log, show it, and start right away; this is the only question of the run.
 - **Fold into that same question, only when they apply:** a related repo that wasn't found (its path), and, when a ticket adds a migration, "may I run it on the **local** database for the e2e?" (no answer: no; the e2e of what needs it stays pending).
@@ -92,7 +105,7 @@ Ask before guessing on money, auth, access or data exposure. When done, write th
 A review is only worth something if the reviewer didn't build the code and isn't invested in finishing the delivery. So:
 
 - **Never the builder, never you.** Every `risk-review` and `code-review` runs in a **new agent with a clean context**, started through the runner like a worker (Orca `worker-start`, Herdr `hc run`, or a sub-agent; in Claude Code, the `risk-reviewer` agent for risk). With no runner and no sub-agents, start one with the non-interactive mode of an installed agent CLI (`claude -p`, `codex exec`, `gemini -p`, `grok -p`, `agy -p`) in the worktree under review. Only when none of these exists, review yourself in a separate pass that reads only the reviewer inputs below, and log `REVIEW: no fresh reviewer available`.
-- **Same agent, stronger, for red work.** Don't switch agents just to review. The reviewer is the agent that built the ticket (for the whole branch, your own agent), in a new session, one step stronger than the builder: the next model tier, or, if the builder was already at the deep tier, one more effort level (never above `xhigh`). Yellow and green: the same agent, fresh, at the tier of section 4. Another agent reviews only when this one can't run (section 5, "The agent can't go on").
+- **Same agent, stronger, for red work.** Don't switch agents just to review. The reviewer is the agent that built the ticket (for the whole branch, your own agent), in a new session, one step stronger than the builder: the next model tier, or, if the builder was already at the deep tier, one more effort level (never above `xhigh`). Yellow and green: the same agent, fresh, at the tier of section 4. If the reviewer hits its usage limit or can't go on, the same rule as for a worker applies (section 5, "The agent can't go on"): start a fresh reviewer with the next entry of the fallback chain, from the same inputs.
 - **Inputs only:** the diff (`<base>` and the branch), the spec, the ticket, `AGENTS.md` (and the related repo's own rules). **Not the worker's report**, so the reviewer doesn't anchor on "already tested"; you compare the two afterwards.
 - **Read-only.** The reviewer edits nothing and runs no heavy command. It works in the worktree under review: the ticket worktree for a ticket, the integration worktree for the whole branch.
 - **Report file:** `<that worktree>/.review/review-<risk|code>.md`, ending in `RESULT: pass | findings | failed`. Copy it to `.review/feat-<slug>/reviews/<NN|branch>-<risk|code>.md` before the worktree goes away.
@@ -180,7 +193,7 @@ When a worker signals, read its report file:
 
 - **`RESULT: question`**: answer it yourself from the spec, the code and `AGENTS.md`, choosing what you would recommend, and log it as a decision. Only a question on money, auth, access or data exposure that the spec doesn't answer is a stop rule.
 - **`RESULT: failed`**: send what to fix, or retry (below).
-- **The agent can't go on** (usage or rate limit, login expired, crashed, stuck on a prompt only a person can answer such as an upgrade, payment or login screen): don't answer that screen and don't ask the developer. Stop that worker and **retry the ticket with the next agent from the developer's list, then with your own agent**, in the same worktree, with the "continue from the previous worker's work" note. Log it.
+- **The agent can't go on** (usage or rate limit, login expired, crashed, stuck on a prompt only a person can answer such as an upgrade, payment or login screen): don't answer that screen and don't ask the developer. Stop that worker and **retry the ticket with the next entry of the fallback chain** (section 1): first another model of the same agent, then another agent, in the same worktree, with the "continue from the previous worker's work" note. Log it.
 - **`RESULT: done`**:
   1. Check: the commit in the report is the tip of `feat/<slug>--NN`, the worker touched only its worktree, and nothing was pushed (`git ls-remote origin feat/<slug>--NN` is empty).
   2. Start the reviewers (section 2b) on the ticket worktree, base `feat/<slug>` **of its repo**: `risk-review`, and for a red ticket `code-review` at the same time. In another repo, its conventions come from that repo's `AGENTS.md` or README, the domain and security rules from this one. Wait for both reports and decide on the findings.
@@ -224,7 +237,7 @@ The e2e must run **the delivery's code**, so start the apps yourself from the in
 
 ## Decide on your own (log it as a DECISION)
 
-- which agent continues a ticket when one can't go on (next in the developer's list, then yours)
+- which agent or model continues a ticket or a review when one can't go on (the next entry of the fallback chain)
 - effort and model changes, and dropping a level an agent rejects
 - answers to worker questions the spec, the code or `AGENTS.md` answer, including test conventions and tooling choices inside the spec's zone that add no dependency
 - merge conflicts between tickets of this delivery

@@ -13,3 +13,4 @@ What the kit's skills and scripts read mechanically. Prose rules (zones, domain 
 | `environments.local` | dev-env | Services to probe (`name`, `url`, `health`), and how the developer starts the local stack (`start`, `startDir`, `docs`). |
 | `environments.shared` | e2e, open-pr | Shared test environments (`name`, `urls`, `deploy` note). Empty list: no shared-environment e2e. |
 | `models` | deliver, render-html | Model per tier (`fast`, `standard`, `deep`) for each agent. Empty: the agent's default. |
+| `models.fallback` | deliver | Optional order of `agent` or `agent:model` entries to try when one hits its usage limit, e.g. `["agy:<model>", "claude"]`. Empty: detected (the same agent's other models first, then the developer's agents, then the other installed ones). |
